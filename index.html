@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Workplace Dynamics Connection Circle</title>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+		/>
+		<style>
+			body {
+				margin: 0;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				min-height: 100vh;
+				background-color: #202020;
+				font-family: Arial, sans-serif;
+				color: #ffffff;
+				padding: 20px;
+				box-sizing: border-box;
+			}
+
+			#canvas-container {
+				position: relative;
+				width: 100%;
+				max-width: 1200px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+
+			canvas {
+				cursor: default;
+			}
+
+			canvas.hovering {
+				cursor: pointer;
+			}
+
+			.toggle-button {
+				display: none; /* Hide the toggle button since we're using hover */
+			}
+
+			.legend {
+				position: absolute;
+				bottom: 20px;
+				right: 20px;
+				background-color: rgba(40, 40, 40, 0.9);
+				padding: 15px;
+				border-radius: 5px;
+				box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+				color: white;
+				z-index: 10;
+			}
+
+			.legend-item {
+				display: flex;
+				align-items: center;
+				margin: 8px 0;
+				font-size: 14px;
+			}
+
+			.legend-color {
+				width: 15px;
+				height: 15px;
+				margin-right: 10px;
+				border-radius: 50%;
+			}
+
+			h2 {
+				text-align: center;
+				margin: 10px 0 20px;
+				color: white;
+				font-size: clamp(18px, 4vw, 24px);
+			}
+
+			@media (max-width: 768px) {
+				.legend {
+					position: relative;
+					bottom: auto;
+					right: auto;
+					margin-top: 20px;
+					width: 100%;
+					max-width: 300px;
+				}
+
+				.toggle-button {
+					top: 10px;
+					right: 10px;
+				}
+
+				.legend-item {
+					font-size: 12px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="canvas-container">
+			<h2>Workplace Dynamics Connection Circle</h2>
+			<div class="legend">
+				<div class="legend-item">
+					<div
+						class="legend-color"
+						style="background-color: rgba(255, 0, 0, 0.7)"
+					></div>
+					<div>Strong Negative Relationship</div>
+				</div>
+				<div class="legend-item">
+					<div
+						class="legend-color"
+						style="background-color: rgba(255, 165, 0, 0.7)"
+					></div>
+					<div>Moderate Negative Relationship</div>
+				</div>
+				<div class="legend-item">
+					<div
+						class="legend-color"
+						style="background-color: rgba(0, 128, 0, 0.7)"
+					></div>
+					<div>Positive Relationship</div>
+				</div>
+			</div>
+			<script>
+				let hoveredRelationship = null;
+				let showDescriptions = true;
+				let canvasSize;
+				let baseRadius;
+				let fontSize;
+
+				// Define the concepts and their positions
+				const concepts = [
+					{ name: "Overtime", x: 0, y: -1 },
+					{ name: "Micromanagement", x: -0.95, y: -0.31 },
+					{ name: "Productivity", x: -0.59, y: 0.81 },
+					{ name: "Happiness", x: 0.59, y: 0.81 },
+					{ name: "Disengagement", x: 0.95, y: -0.31 },
+				];
+
+				// Define relationships between concepts
+				// [from, to, strength (-1 to 1), description]
+				const relationships = [
+					[0, 2, 0.3, "Initial boost"],
+					[0, 3, -0.8, "Reduces significantly"],
+					[0, 4, 0.7, "Often leads to"],
+					[1, 0, 0.6, "Often leads to"],
+					[1, 2, -0.5, "Hinders"],
+					[1, 3, -0.9, "Strongly reduces"],
+					[1, 4, 0.8, "Strongly promotes"],
+					[2, 3, 0.7, "Positive contribution"],
+					[2, 4, -0.4, "Helps prevent"],
+					[3, 2, 0.6, "Enhances"],
+					[3, 4, -0.8, "Prevents"],
+					[4, 2, -0.9, "Significantly reduces"],
+				];
+
+				function calculateResponsiveSizes() {
+					const containerWidth =
+						document.getElementById("canvas-container").offsetWidth;
+					const containerHeight = window.innerHeight * 0.8;
+
+					canvasSize = {
+						width: Math.min(containerWidth * 0.95, 1200),
+						height: Math.min(containerHeight, 800),
+					};
+
+					baseRadius =
+						Math.min(canvasSize.width, canvasSize.height) * 0.3;
+					fontSize = Math.max(
+						10,
+						Math.min(14, canvasSize.width / 50)
+					);
+				}
+
+				function windowResized() {
+					calculateResponsiveSizes();
+					resizeCanvas(canvasSize.width, canvasSize.height);
+					redraw();
+				}
+
+				function mouseMoved() {
+					const threshold = baseRadius * 0.05; // Detection threshold for hover
+					let foundHover = false;
+					const canvas = document.querySelector("canvas");
+
+					// Check each relationship for hover
+					for (let i = 0; i < relationships.length; i++) {
+						const r = relationships[i];
+						const fromIdx = r[0];
+						const toIdx = r[1];
+
+						// Calculate positions
+						const fromX =
+							width / 2 + baseRadius * concepts[fromIdx].x;
+						const fromY =
+							height / 2 + baseRadius * concepts[fromIdx].y;
+						const toX = width / 2 + baseRadius * concepts[toIdx].x;
+						const toY = height / 2 + baseRadius * concepts[toIdx].y;
+
+						// Calculate midpoint and perpendicular offset for the curve
+						const midX = (fromX + toX) / 2;
+						const midY = (fromY + toY) / 2;
+						const dx = toX - fromX;
+						const dy = toY - fromY;
+						const norm = sqrt(dx * dx + dy * dy);
+						const perpX = (-dy / norm) * (baseRadius * 0.15);
+						const perpY = (dx / norm) * (baseRadius * 0.15);
+
+						// Check distance from mouse to curve (approximated as two line segments)
+						const d1 = distToSegment(
+							mouseX,
+							mouseY,
+							fromX,
+							fromY,
+							midX + perpX,
+							midY + perpY
+						);
+						const d2 = distToSegment(
+							mouseX,
+							mouseY,
+							midX + perpX,
+							midY + perpY,
+							toX,
+							toY
+						);
+
+						if (min(d1, d2) < threshold) {
+							hoveredRelationship = i;
+							foundHover = true;
+							canvas.classList.add("hovering");
+							break;
+						}
+					}
+
+					if (!foundHover) {
+						hoveredRelationship = null;
+						canvas.classList.remove("hovering");
+					}
+
+					redraw();
+					return false;
+				}
+
+				function distToSegment(px, py, x1, y1, x2, y2) {
+					const A = px - x1;
+					const B = py - y1;
+					const C = x2 - x1;
+					const D = y2 - y1;
+
+					const dot = A * C + B * D;
+					const len_sq = C * C + D * D;
+					let param = -1;
+
+					if (len_sq != 0) {
+						param = dot / len_sq;
+					}
+
+					let xx, yy;
+
+					if (param < 0) {
+						xx = x1;
+						yy = y1;
+					} else if (param > 1) {
+						xx = x2;
+						yy = y2;
+					} else {
+						xx = x1 + param * C;
+						yy = y1 + param * D;
+					}
+
+					const dx = px - xx;
+					const dy = py - yy;
+					return sqrt(dx * dx + dy * dy);
+				}
+
+				function setup() {
+					calculateResponsiveSizes();
+					let canvas = createCanvas(
+						canvasSize.width,
+						canvasSize.height
+					);
+					canvas.parent("canvas-container");
+					textAlign(CENTER, CENTER);
+					strokeWeight(2);
+					canvas.mouseOver(() => loop());
+					canvas.mouseOut(() => {
+						hoveredRelationship = null;
+						redraw();
+						noLoop();
+					});
+					canvas.mouseMoved(mouseMoved);
+				}
+
+				function draw() {
+					background(30);
+
+					const centerX = width / 2;
+					const centerY = height / 2;
+
+					// Draw relationships first (behind nodes)
+					for (let i = 0; i < relationships.length; i++) {
+						const r = relationships[i];
+						const fromIdx = r[0];
+						const toIdx = r[1];
+						const strength = r[2];
+						const description = r[3];
+
+						// Calculate start and end positions
+						const fromX =
+							centerX + baseRadius * concepts[fromIdx].x;
+						const fromY =
+							centerY + baseRadius * concepts[fromIdx].y;
+						const toX = centerX + baseRadius * concepts[toIdx].x;
+						const toY = centerY + baseRadius * concepts[toIdx].y;
+
+						// Set color based on relationship strength
+						let strokeColor;
+						if (strength < 0) {
+							if (strength < -0.7) {
+								strokeColor = color(255, 0, 0, 180); // Strong negative - red
+							} else {
+								strokeColor = color(255, 165, 0, 180); // Moderate negative - orange
+							}
+						} else {
+							strokeColor = color(0, 128, 0, 180); // Positive - green
+						}
+						stroke(strokeColor);
+						strokeWeight(
+							abs(strength) * Math.max(3, baseRadius / 40)
+						);
+						noFill();
+						beginShape();
+						// Create a curved line
+						const midX = (fromX + toX) / 2;
+						const midY = (fromY + toY) / 2;
+						const control1X = (fromX + midX) / 2;
+						const control1Y = (fromY + midY) / 2;
+						const control2X = (midX + toX) / 2;
+						const control2Y = (midY + toY) / 2;
+
+						// Add some curvature
+						const dx = toX - fromX;
+						const dy = toY - fromY;
+						const norm = sqrt(dx * dx + dy * dy);
+						const perpX = (-dy / norm) * (baseRadius * 0.15);
+						const perpY = (dx / norm) * (baseRadius * 0.15);
+
+						bezier(
+							fromX,
+							fromY,
+							midX + perpX,
+							midY + perpY,
+							midX + perpX,
+							midY + perpY,
+							toX,
+							toY
+						);
+						endShape();
+
+						// Add arrowhead
+						push();
+						translate(toX, toY);
+						const angle = atan2(
+							toY - (midY + perpY),
+							toX - (midX + perpX)
+						);
+						rotate(angle);
+						fill(strokeColor);
+						const arrowSize = baseRadius * 0.05;
+						triangle(
+							0,
+							0,
+							-arrowSize * 2,
+							-arrowSize,
+							-arrowSize * 2,
+							arrowSize
+						);
+						pop();
+
+						// Add relationship label only for hovered relationship
+						if (i === hoveredRelationship) {
+							noStroke();
+							fill(255);
+							textSize(fontSize);
+							text(
+								description,
+								midX + perpX * 1.2,
+								midY + perpY * 1.2
+							);
+						}
+					}
+
+					// Reset stroke weight for nodes
+					strokeWeight(2);
+
+					// Draw nodes
+					for (let i = 0; i < concepts.length; i++) {
+						const c = concepts[i];
+						const x = centerX + baseRadius * c.x;
+						const y = centerY + baseRadius * c.y;
+						const nodeSize = baseRadius * 0.3;
+
+						// Draw node
+						fill(64, 105, 224);
+						stroke(25, 55, 165);
+						ellipse(x, y, nodeSize, nodeSize);
+
+						// Draw text
+						fill(255);
+						noStroke();
+						textSize(fontSize);
+						text(c.name, x, y);
+					}
+				}
+			</script>
+		</div>
+	</body>
+</html>
